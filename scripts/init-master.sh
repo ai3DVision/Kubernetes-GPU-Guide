@@ -5,9 +5,10 @@ sudo bash -c 'apt-get update && apt-get install -y apt-transport-https
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
 deb http://apt.kubernetes.io/ kubernetes-xenial main
-EOF
-apt-get update'
-sudo apt-get install -y --allow-unauthenticated docker-engine
+EOF'
+sudo apt-get update
+# sudo apt-get install -y --allow-unauthenticated docker-engine
+sudo apt-get install -y docker.io
 sudo apt-get install -y --allow-unauthenticated kubelet kubeadm kubectl kubernetes-cni
 sudo groupadd docker
 sudo usermod -aG docker $USER
@@ -30,9 +31,16 @@ sudo systemctl daemon-reload
 sudo systemctl restart kubelet
 
 sudo kubeadm init --apiserver-advertise-address=$1
-sudo cp /etc/kubernetes/admin.conf $HOME/
-sudo chown $(id -u):$(id -g) $HOME/admin.conf
-export KUBECONFIG=$HOME/admin.conf
+mkdir -p $HOME/.kube
+sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+export KUBECONFIG=$HOME/.kube/config
 
-kubectl apply -f https://git.io/weave-kube-1.6
-kubectl create -f https://git.io/kube-dashboard
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')" > /dev/null 2>> error.log
+kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml > /dev/null 2>> error.log
+kubectl create -f ../yaml/admin-user.yaml > /dev/null 2>> error.log
+kubectl create -f ../yaml/admin-user-role.yaml > /dev/null 2>> error.log
+token=$(kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}') | awk '$1=="token:"{print $2}')
+
+echo "Use the following token to get Dashboard access:"
+echo $token

@@ -2,15 +2,20 @@
 # Following arguments are necessary:
 # 1. -> token ,  e.g. "f38242.e7f3XXXXXXXXe231e"
 # 2. -> IP:port of the master
+# 3. -> ca-cert-hash of the master, e.g. "sha256:ad9425abcf02e4d8a476da11f3672d5bc7255cd7494a4fdd4f8c0092a13f9737"
+
 echo "The following token will be used: ${1}"
 echo "The master nodes IP:Port is: ${2}"
+echo "The following master node ca cert hash will be checked: ${3}"
+
 sudo bash -c 'apt-get update && apt-get install -y apt-transport-https
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
 deb http://apt.kubernetes.io/ kubernetes-xenial main
-EOF
-apt-get update'
-sudo apt-get install -y --allow-unauthenticated docker-engine
+EOF'
+sudo apt-get update
+# sudo apt-get install -y --allow-unauthenticated docker-engine
+sudo apt-get install -y docker.io
 sudo apt-get install -y --allow-unauthenticated kubelet kubeadm kubectl kubernetes-cni
 sudo groupadd docker
 sudo usermod -aG docker $USER
@@ -32,4 +37,4 @@ sudo sed -i '/^ExecStart=\/usr\/bin\/kubelet/ s/$/ --feature-gates="Accelerators
 sudo systemctl daemon-reload
 sudo systemctl restart kubelet
 
-sudo kubeadm join --token $1 $2
+sudo kubeadm join --token $1 $2 --discovery-token-ca-cert-hash $3
