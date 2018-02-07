@@ -87,7 +87,7 @@ Furthermore make sure that your setup fits into my constraints.
 **MASTER NODE**
 
 Execute the initialization script and remember the token 😉 <br/>
-The token will look like this: ```—token f38242.e7f3XXXXXXXXe231e```.
+The token will look like this: ```—token f38242.e7f3XXXXXXXXe231e 130.211.XXX.XXX:6443 --discovery-token-ca-cert-hash sha256:047xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxa287ee```.
 
 ```
 chmod +x init-master.sh
@@ -101,7 +101,7 @@ The port is usually ```6443```.
 
 ```
 chmod +x init-worker.sh
-sudo ./init-worker.sh <Token-of-Master> <IP-of-master>:<Port>
+sudo ./init-worker.sh <Token-of-Master> <IP-of-master>:<Port> <discovery-token-ca-cert-hash>
 ```
 
 <h4>Detailed step by step instructions</h4>
@@ -152,10 +152,11 @@ sudo systemctl restart kubelet
 **4.** Now we will initialize the master node.<br/>
 Therefore you will need the IP of your master node.
 Furthermore this step will provide you with the credentials to add further worker nodes, so remember your token 😉 </br>
-The token will look like this: ``` —token f38242.e7f3XXXXXXXXe231e 130.211.XXX.XXX:6443```
+The token will look like this: ``` —token f38242.e7f3XXXXXXXXe231e 130.211.XXX.XXX:6443 --discovery-token-ca-cert-hash sha256:047xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxa287ee```
 ```
 sudo kubeadm init --apiserver-advertise-address=<ip-address>
 ```
+
 **5.** Since Kubernetes 1.6 changed from ABAC roll-management to RBAC we need to advertise the credentials of the user.
 You will need to perform this step for each time you will log into the machine!!
 ```
@@ -172,12 +173,13 @@ export KUBECONFIG=$HOME/admin.conf
 This GoogleSheet contains a selection of suitable network add- on GoogleSheet-Network-Add-on-vergleich .
 I will use wave-works, just because of my personal preference ;)
 ```
-kubectl apply -f https://git.io/weave-kube-1.6
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
 ```
 **5.II** You are ready to go, maybe check your pods to confirm that everything is working ;)
 ```
 kubectl get pods —all-namespaces
 ```
+
 **N.** If you want to tear down your master, you will need to reset the master node
 ```
 sudo kubeadm reset
@@ -231,12 +233,14 @@ sudo systemctl restart kubelet
 **4.** Now we will add the worker to the cluster.<br/>
 Therefore you will need to remember the token from your master node, so take a deep dive into your notes xD
 ```
-sudo kubeadm join --token f38242.e7f3XXXXXXe231e 130.211.XXX.XXX:6443
+sudo kubeadm join --token f38242.e7f3XXXXXXe231e 130.211.XXX.XXX:6443 --discovery-token-ca-cert-hash sha256:047xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxa287ee
 ```
+
 **5.** Finished, check your nodes on your master and see if everything worked.
 ```
 kubectl get nodes
 ```
+
 **N.** If you want to tear down your worker node, you will need to remove the node from the cluster and reset the worker node.
 Furthermore it will be beneficial to remove the worker node from the cluster  
 ***On master:***   
@@ -261,10 +265,12 @@ I don’t know about windows, but who cares about windows anyway :D</br>
 ```
 brew install kubectl
 ```
+
 **2.** Copy the admin authentication from the master to your client
 ```
 scp uai@130.211.XXX.64:~/admin.conf ~/.kube/
 ```
+
 **3.** Add the admin.conf configuration and credentials to Kubernetes configuration. You will need to do this for every agent
 ```
 export KUBECONFIG=~/.kube/admin.conf
@@ -275,7 +281,6 @@ You are ready to use kubectl on you local client.
 ```
 kubectl get pods —all-namespaces
 ```
-
 
 **Install Kubernetes dashboard**
 
@@ -289,18 +294,54 @@ kubectl get pods --all-namespaces | grep dashboard
 
 **2.** If the dashboard isn’t installed, install it ;)
 ```
-kubectl create -f https://git.io/kube-dashboard
+kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
 ```
 If this did not work check if the container defined in the .yaml [git.io/kube-dashboard](https/git.io/kube-dashboard) exist. (This bug cost me a lot of time)
 
-In order to have access to your dashboard you will need to be authenticated with you client.
+In order to have access to your dashboard you will need to be authenticated with a Token or Kubeconfig.
 
-**3.** Proxy the dashboard to your client
+**3.** For Token authentication create a user
+```
+kubectl create -f admin-user.yaml
+```
+Content of the ```admin-user.yaml```:
+```
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-user
+  namespace: kube-system
+```
+Setup admin-user Role
+```
+kubectl create -f admin-user-role.yaml
+```
+Content of the ```admin-user-role.yaml```
+```
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: admin-user
+  namespace: kube-system
+```
+You will get the admin-user Token by the following commands
+```
+kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}') | awk '$1=="token:"{print $2}'
+```
+
+**4.** Proxy the dashboard to your client
 ```
 kubectl proxy
 ```
 
-**4.** Access the dashboard within your browser by visiting
+**5.** Access the dashboard within your browser by visiting
 [127.0.0.1:8001/ui](127.0.0.1:8001/ui)
 
 ## How to build your GPU container
